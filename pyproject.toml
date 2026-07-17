@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "rowland_geometry"
+version = "0.1.0"
+description = "A package for tracking the position of optical elements of an X-ray spectrometer in a focusing Rowland geometry configuration."
+authors = ["Anthony Joseph Gironda"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
