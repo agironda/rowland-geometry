@@ -1,4 +1,14 @@
-# crystals.py 
+"""
+Crystal analyzer material data and crystallographic calculations.
+
+This module provides lookup of supported analyzer materials and calculates the 
+interplanar d-spacing of a plane family and the angles between two crystal 
+plane families.
+
+The most common hard X-ray analyzer materials are supported and hard-coded here
+in a dictionary: silicon, germanium, quartz, sapphire, and lithium niobate.
+"""
+
 import numpy as np
 from typing import Sequence
 
@@ -47,8 +57,29 @@ CRYSTALS = {
     },
 }
 
-def get_crystal(material: str) -> dict:
 
+def get_crystal(material: str) -> dict:
+    """
+    Returns data for a supported crystal analyzer material.
+
+    Parameters
+    ----------
+    material : str
+        Name or alias of the crystal analyzer material.
+
+    Returns
+    -------
+    dict
+        Crystal data containing the material name, formula, aliases, crystal
+        system, and lattice parameters in angstroms.
+
+    Examples
+    --------
+    >>> get_crystal("Si")["name"]
+    'Silicon'
+    >>> get_crystal("lithium niobate")["a"]
+    5.148
+    """
     key = material.strip().lower()
 
     for crystal in CRYSTALS.values():
@@ -59,7 +90,7 @@ def get_crystal(material: str) -> dict:
         ]
 
         if key in valid_keys:
-            return crystal
+            return crystal.copy()
         
     supported = ", ".join(crystal["name"] for crystal in CRYSTALS.values())
 
@@ -68,12 +99,14 @@ def get_crystal(material: str) -> dict:
         f"Supported materials: {supported}"
     )
 
+
 def d_spacing(
         material: str,
         reflection: Sequence[int]
         ) -> float:
     """
-    The interplanar distance of a plane family in a given crystal structure.
+    Calculate the interplanar distance of a plane family in a given crystal 
+    structure.
 
     Parameters
     ----------
@@ -154,13 +187,14 @@ def d_spacing(
 
     return float(d)
 
+
 def plane_angle(
         material: str,
         plane_1: Sequence[int],
         plane_2: Sequence[int]
         ) -> float:
     """
-    The angle between two plane families in a given crystal structure.
+    Calculate the angle between two crystal plane families.
 
     Parameters
     ----------
@@ -190,7 +224,7 @@ def plane_angle(
     dot = float(np.dot(vector_1, vector_2))
     norm = np.linalg.norm(vector_1) * np.linalg.norm(vector_2)
 
-    cos_angle = np.clip(abs(dot) / norm, -1.0, 1.0)
+    cos_angle = np.clip(abs(dot) / norm, 0.0, 1.0)
 
     return float(np.degrees(np.arccos(cos_angle)))
 
