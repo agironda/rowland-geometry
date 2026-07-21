@@ -8,9 +8,8 @@ plane families.
 The most common hard X-ray analyzer materials are supported and hard-coded here
 in a dictionary: silicon, germanium, quartz, sapphire, and lithium niobate.
 """
-
+from collections.abc import Sequence
 import numpy as np
-from typing import Sequence
 
 CRYSTALS = {
 
@@ -95,7 +94,7 @@ def get_crystal(material: str) -> dict:
     supported = ", ".join(crystal["name"] for crystal in CRYSTALS.values())
 
     raise ValueError(
-        f"Unsupported crystal material or unrecognized alias. "
+        f"Unsupported crystal material or unrecognized alias {material!r}. "
         f"Supported materials: {supported}"
     )
 
@@ -133,57 +132,17 @@ def d_spacing(
     >>> d_spacing("germanium", [5, 5, 1])
     """
     crystal = get_crystal(material)
-    hkl = np.asarray(reflection)
-
-    if not np.all(np.isfinite(hkl)):
-        raise ValueError("Reflection indices must be finite")
-    
-    if not np.all(np.equal(hkl, np.round(hkl))):
-        raise ValueError("Reflection indices must be integers")
-
-    hkl = hkl.astype(int)
-
-    if not np.any(hkl):
-        raise ValueError("Reflection indices cannot all be zero")
+    h, k, l = _validate_indices(crystal, reflection)
 
     if crystal["system"] == "cubic":
-        if hkl.shape != (3,):
-            raise ValueError(
-                "Reflection must be a 3 element index (h, k, l)"
-            )
-        
-        h, k, l = hkl
         a = crystal["a"]
-
         d = a / np.sqrt(h*h + k*k + l*l)
 
-    elif crystal["system"] == "hexagonal":
-        if hkl.shape == (3,):
-            h, k, l = hkl
-
-        elif hkl.shape == (4,):
-            h, k, i, l = hkl
-            
-            if i != -(h + k):
-                raise ValueError(
-                    "For 4-index notation, i must equal -(h + k)"
-                    )
-
-        else:
-            raise ValueError(
-                "Reflection must be a 3 or 4 element index (h, k, (i), l)"
-            )
-        
+    else: # crystal["system"] == "hexagonal"
         a = crystal["a"]
         c = crystal["c"]
-
         denom = ((4/3)*(h*h + k*k + h*k)) + a*a*l*l/c/c
         d = a / np.sqrt(denom)
-
-    else:
-        raise ValueError(
-            f"Unsupported crystal system {crystal['system']!r}"
-        )
 
     return float(d)
 
@@ -236,6 +195,54 @@ def _plane_normal(
     """
     Return a Cartesian vector normal to the crystal plane.
     """
+    h, k, l = _validate_indices(crystal, indices)
+
+    if crystal["system"] == "cubic":
+        return np.array([h, k, l], dtype=float)
+
+    else: # crystal["system"] == "hexagonal":
+        a = crystal["a"]
+        c = crystal["c"]
+
+        return np.array([
+            h / a,
+            (h + 2*k) / (np.sqrt(3.0) * a),
+            l / c,
+        ])
+    
+
+def _validate_indices(
+        crystal: dict,
+        indices: Sequence[int],
+        ) -> np.ndarray:
+    """
+    Validate Miller indices and return them as an integer NumPy array.
+
+    Parameters
+    ----------
+    crystal : dict
+        Crystal analyzer data containing the crystal system.
+    indices : Sequence[int]
+        Miller indices in 3-index notation. A 4-index input is allowed for 
+        hexagonal crystals.
+
+    Returns
+    -------
+    numpy.ndarray
+        Integer array containing [h, k, l].
+
+    Raises
+    ------
+    ValueError
+        If the indices are non-finite, non-integer, all zero, incompatible
+        with the crystal system, or invalid in 4-index Miller-Bravais
+        notation.
+
+    Notes
+    -----
+    Four-index hexagonal Miller indices [h, k, i, l] are validated using
+    i = -(h + k) and returned as [h, k, l].
+    """
     hkl = np.asarray(indices)
 
     if not np.all(np.isfinite(hkl)):
@@ -248,42 +255,31 @@ def _plane_normal(
 
     if not np.any(hkl):
         raise ValueError("Plane indices cannot all be zero")
-
+    
     if crystal["system"] == "cubic":
         if hkl.shape != (3,):
             raise ValueError(
                 "Cubic planes must use a 3-element index (h, k, l)"
             )
 
-        return hkl.astype(float)
-
     elif crystal["system"] == "hexagonal":
-        if hkl.shape == (3,):
-            h, k, l = hkl
-
-        elif hkl.shape == (4,):
+        if hkl.shape == (4,):
             h, k, i, l = hkl
 
             if i != -(h + k):
                 raise ValueError(
                     "For 4-index notation, i must equal -(h + k)"
                 )
+            hkl = np.array([h, k, l], dtype=int)
 
-        else:
+        elif hkl.shape != (3,):
             raise ValueError(
                 "Hexagonal planes must use (h, k, l) or (h, k, i, l)"
             )
-
-        a = crystal["a"]
-        c = crystal["c"]
-
-        return np.array([
-            h / a,
-            (h + 2*k) / (np.sqrt(3.0) * a),
-            l / c,
-        ])
 
     else:
         raise ValueError(
             f"Unsupported crystal system {crystal['system']!r}"
         )
+    
+    return hkl
