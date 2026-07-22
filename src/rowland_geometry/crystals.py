@@ -8,6 +8,7 @@ plane families.
 The most common hard X-ray analyzer materials are supported and hard-coded here
 in a dictionary: silicon, germanium, quartz, sapphire, and lithium niobate.
 """
+
 from collections.abc import Sequence
 import numpy as np
 
@@ -41,7 +42,7 @@ CRYSTALS = {
     "sapphire": {
         "name": "Sapphire",
         "formula": "Al2O3",
-        "aliases": ("sapphire", "alo", "al2o3"),
+        "aliases": ("sapphire", "alo", "al2o3", "corundum", "sapph", "sapp"),
         "system": "hexagonal",
         "a":  4.754, # angstrom
         "c": 12.982, # angstrom
@@ -76,7 +77,7 @@ def get_crystal(material: str) -> dict:
     --------
     >>> get_crystal("Si")["name"]
     'Silicon'
-    >>> get_crystal("lithium niobate")["a"]
+    >>> get_crystal("lithium niobate")["a"] # lattice parameter 'a'
     5.148
     """
     key = material.strip().lower()
@@ -129,7 +130,14 @@ def d_spacing(
 
     Examples
     --------
-    >>> d_spacing("germanium", [5, 5, 1])
+    >>> d_spacing("silicon", [2, 2, 0])     # cubic, 3 index input
+    1.920127...
+    >>> d_spacing("sapph", [1, 4, 6])       # hexagonal, 3 index input
+    0.829734...
+    >>> d_spacing("linbo3", [3, 1, 0])      # hexagonal, 3 index input
+    1.236509...
+    >>> d_spacing("quartz", [5, 0, -5, 2])  # hexagonal, 4 index input
+    0.811819...
     """
     crystal = get_crystal(material)
     h, k, l = _validate_indices(crystal, reflection)
@@ -160,7 +168,7 @@ def plane_angle(
     material : str
         Name or alias of the crystal analyzer material.
     plane_1 : Sequence[int]
-        Miller indices of the reflection as [h, k, l]. For hexagonal crystal 
+        Miller indices of a plane family as [h, k, l]. For hexagonal crystal 
         systems, either [h, k, l] or [h, k, i, l] is supported.
     plane_2 : Sequence[int]
         Miller indices of the second plane family. Uses the same conventions 
@@ -173,7 +181,12 @@ def plane_angle(
     
     Examples
     --------
-    >>> plane_angle("silicon", [5, 5, 1], [1, 0, 0])
+    >>> plane_angle("ge", [5, 5, 1], [1, 1, 1])
+    27.21492...
+    >>> plane_angle("sapphire", [3, 1, 0], [5, 0, 2])
+    15.63294...
+    >>> plane_angle("sapphire", [3, 1, -4, 0], [5, 0, -5, 2]) 
+    15.63294...
     """
     crystal = get_crystal(material)
 
@@ -187,30 +200,7 @@ def plane_angle(
 
     return float(np.degrees(np.arccos(cos_angle)))
 
-
-def _plane_normal(
-        crystal: dict,
-        indices: Sequence[int],
-        ) -> np.ndarray:
-    """
-    Return a Cartesian vector normal to the crystal plane.
-    """
-    h, k, l = _validate_indices(crystal, indices)
-
-    if crystal["system"] == "cubic":
-        return np.array([h, k, l], dtype=float)
-
-    else: # crystal["system"] == "hexagonal":
-        a = crystal["a"]
-        c = crystal["c"]
-
-        return np.array([
-            h / a,
-            (h + 2*k) / (np.sqrt(3.0) * a),
-            l / c,
-        ])
     
-
 def _validate_indices(
         crystal: dict,
         indices: Sequence[int],
@@ -259,7 +249,7 @@ def _validate_indices(
     if crystal["system"] == "cubic":
         if hkl.shape != (3,):
             raise ValueError(
-                "Cubic planes must use a 3-element index (h, k, l)"
+                "Cubic systems must use a 3-element index (h, k, l)"
             )
 
     elif crystal["system"] == "hexagonal":
@@ -274,7 +264,7 @@ def _validate_indices(
 
         elif hkl.shape != (3,):
             raise ValueError(
-                "Hexagonal planes must use (h, k, l) or (h, k, i, l)"
+                "Hexagonal systems must use (h, k, l) or (h, k, i, l)"
             )
 
     else:
@@ -283,3 +273,26 @@ def _validate_indices(
         )
     
     return hkl
+
+
+def _plane_normal(
+        crystal: dict,
+        indices: Sequence[int],
+        ) -> np.ndarray:
+    """
+    Return a Cartesian vector normal to the crystal plane.
+    """
+    h, k, l = _validate_indices(crystal, indices)
+
+    if crystal["system"] == "cubic":
+        return np.array([h, k, l], dtype=float)
+
+    else: # crystal["system"] == "hexagonal":
+        a = crystal["a"]
+        c = crystal["c"]
+
+        return np.array([
+            h / a,
+            (h + 2*k) / (np.sqrt(3.0) * a),
+            l / c,
+        ])
