@@ -11,7 +11,6 @@ energy and vice versa.
 """
 
 from collections.abc import Sequence
-from typing import Optional
 
 import numpy as np
 
@@ -57,21 +56,21 @@ class Analyzer:
         Interplanar spacing of the diffracting plane family in angstroms.
     miscut : float
         Miscut angle between surface profile and `cut` plane family in degrees.
-    alpha_xtal : float
+    crystal_asymmetry : float
         Angle in degrees between the reflection and cut plane families.
-    alpha : float
-        Total asymmetry angle in degrees, the sum of alpha_xtal and miscut.
-    E0 : float
+    asymmetry : float
+        Total asymmetry angle in degrees, the sum of crystal_asymmetry and miscut.
+    e0 : float
         Analyzed photon energy at backscattering (Bragg angle = 90) of the 
         specified reflection in eV.
 
     Methods
     -------
-    energy()
+    to_energy()
         Computes the analyzed photon energy in eV for a given Bragg angle in 
         degrees for the specified plane family `reflection`.
 
-    bragg()
+    to_bragg()
         Computes the Bragg angle in degrees for a given analyzed photon energy
         in eV for the specified plane family `reflection`.
 
@@ -84,17 +83,28 @@ class Analyzer:
     photon energies are in [eV] and all angles are in [deg].
     
     The public properties of the class are read only. A new Analyzer object 
-    must be instantiated to change the parameters such qs the reflection or 
+    must be instantiated to change the parameters such as the reflection or 
     surface cut.
 
-    The miscut and alpha_xtal quantities describe different contributions to the
+    There are no error checks if a specified reflection for photon analysis is
+    allowed or forbidden based on the crystal system's selection rules.
+
+    The miscut and crystal_asymmetry quantities describe different contributions to the
     total asymmetry angle. The miscut is the signed angle between the analyzer's
     surface and the nominal surface-cut plane family. For an SBCA, this angle is 
     nominally zero and the cut plane family is parallel to the analyzer surface.
 
-    The alpha_xtal quantity is the crystallographic angle between the diffracting
+    The crystal_asymmetry quantity is the crystallographic angle between the diffracting
     plane family and the cut plane family. It is independent of wafer miscut.
-    The total asymmetry angle is therefore alpha = alpha_xtal + miscut.
+    The total asymmetry angle is therefore asymmetry = crystal_asymmetry + miscut.
+
+    Examples
+    --------
+    >>> sbca = Analyzer("silicon", [5, 5, 1], 500)
+    >>> sbca.to_bragg(8830)    # input in eV, output in degree
+    67.39525...
+    >>> sbca.to_energy(75)     # input in degree, output in eV
+    8439.224...
     """
     
     def __init__(
@@ -103,10 +113,10 @@ class Analyzer:
         reflection: Sequence[int],
         bending_radius: float,
         *,
-        cut: Optional[Sequence[int]] = None,
+        cut: Sequence[int] | None = None,
         miscut: float = 0.0,
         optic_diameter: float = 100.0,
-    ):
+        ):
         
         bending_radius, optic_diameter, miscut = _validate_analyzer_scalars(
             bending_radius, 
@@ -136,75 +146,79 @@ class Analyzer:
             self._reflection,
         )
         
-        self._alpha_xtal = plane_angle(
+        self._crystal_asymmetry = plane_angle(
             self._material, 
             self._reflection, 
             self._cut,
         )
 
-        self._E0 = float(HC / (2.0 * self._d_hkl))  # eV
+        self._e0 = float(HC / (2.0 * self._d_hkl))  # eV
 
     @property
     def bending_radius(self) -> float:
+        """Radius of curvature of the bent crystal analyzer surface in [mm]."""
         return self._bending_radius
 
     @property
     def optic_diameter(self) -> float:
+        """Diameter of the optic in [mm]."""
         return self._optic_diameter
 
     @property
     def material(self) -> str:
+        """Wafer material of the crystal analyzer."""
         return self._material
 
     @property
     def reflection(self) -> np.ndarray:
+        """Indices of the diffracting reflection for photon analysis."""
         return self._reflection
 
     @property
     def cut(self) -> np.ndarray:
+        """Indices of the plane family nominally coplanar with the wafer surface."""
         return self._cut
 
     @property
     def miscut(self) -> float:
-        """Miscut angle (deg) between the nominal surface and G0."""
+        """Miscut angle (deg) between the wafer surface and the 'cut' of the optic."""
         return self._miscut
 
     @property
-    def alpha_xtal(self) -> float:
-        """Angle (deg) from planes only (no miscut)."""
-        return self._alpha_xtal
+    def crystal_asymmetry(self) -> float:
+        """Crystallographic angle between the reflection and cut planes in degrees."""
+        return self._crystal_asymmetry
 
     @property
-    def alpha(self) -> float:
-        """Total asymmetry angle α (deg) including miscut."""
-        return self._alpha_xtal + self._miscut
-
-    @property
-    def alpha_rad(self) -> float:
-        return np.radians(self.alpha)
+    def asymmetry(self) -> float:
+        """Total asymmetry angle alpha (deg), sum of miscut and crystal_asymmetry."""
+        return self._crystal_asymmetry + self._miscut
 
     @property
     def d_hkl(self) -> float:
+        """Interplanar spacing of the analyzer's reflection in [angstrom]."""
         return self._d_hkl
 
     @property
-    def E0(self) -> float:
-        """Backscatter energy (eV) for this reflection (θ_B = 90°)."""
-        return self._E0
+    def e0(self) -> float:
+        """Backscatter energy [eV] for the analyzer's reflection at 90 deg Bragg."""
+        return self._e0
 
-    def energy(self, angle_deg: float) -> float:
+    def to_energy(self, angle_deg: float) -> float:
         """Compute the energy (eV) for a given Bragg angle (degrees)."""
-        if not (0.0 < angle_deg <= 90.0):
-            raise ValueError("Bragg angle must be between 0 and 90 deg")
-        return self.E0 / np.sin(np.radians(angle_deg))
+        angle_deg = float(angle_deg)
+        if not (0.0 < angle_deg <= 90.0) or not np.isfinite(angle_deg):
+            raise ValueError("Bragg angle must be finite and between 0 and 90 deg")
+        return float(self.e0 / np.sin(np.radians(angle_deg)))
 
-    def bragg(self, energy: float) -> float:
+    def to_bragg(self, energy: float) -> float:
         """Compute the Bragg angle (deg) for a given energy (eV)."""
-        if energy < self.E0:
-            raise ValueError("Energy below E0 for the given reflection")
-        return np.degrees(np.asin(self.E0 / energy))
+        energy = float(energy)
+        if energy < self.e0 or not np.isfinite(energy):
+            raise ValueError("Energy must be finite and greater than e0")
+        return float(np.degrees(np.asin(self.e0 / energy)))
     
-    def as_dict(self) -> dict:
+    def as_dict(self) -> dict[str, object]:
         return {
             "material": self.material,
             "reflection": self.reflection.tolist(),
@@ -212,10 +226,10 @@ class Analyzer:
             "bending_radius": self.bending_radius,
             "optic_diameter": self.optic_diameter,
             "d_hkl": self.d_hkl,
-            "E0": self.E0,
-            "crystal_alpha": self.alpha_xtal,
+            "e0": self.e0,
+            "crystal_asymmetry": self.crystal_asymmetry,
             "miscut": self.miscut,
-            "alpha": self.alpha,
+            "asymmetry": self.asymmetry,
             }
 
 
@@ -225,7 +239,8 @@ def _validate_analyzer_scalars(
         miscut: float,
         ) -> tuple[float, float, float]:
     """
-    Validate and normalize scalar inputs to the Analyzer class
+    Validate and normalize scalar inputs to the Analyzer class.
+    Raises specific errors for incorrect formats.
     """
     bending_radius = float(bending_radius)
     optic_diameter = float(optic_diameter)
