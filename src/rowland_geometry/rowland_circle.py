@@ -14,37 +14,118 @@ changed which triggers a recalculation of the chords and coordinates relating
 the source, analyzer, and foci.
 
 The Rowland geometry here is only concerned with the relative relation of the 
-circle's elements and is thus in an absolute, canonical reference frame. The 
+circle's elements and is thus in a defined canonical reference frame. The 
 use of energy to drive the Rowland circle in a specific reference frame are 
-instead described in spectrometer.py module and the Spectrometer class.
+instead handled in the spectrometer.py module and the Spectrometer class.
 """
 import numpy as np
 
+
 class RowlandCircle:
     """
-    Object representation of Rowwland circle focusing geometry and arrangement
+    Object representation of Rowland circle focusing geometry and arrangement
     of its elements about the circle perimeter: source, optic, and foci.
 
     Parameters
     ----------
-    diameter : str
-        Name, formula, or alias of a supported crystal material.
-    bragg : Sequence[int]
-        Miller indices of the diffracting plane.
-    alpha : float
-        Radius of curvature of the analyzer surface in millimetres.
+    diameter : float
+        Diameter of the Rowland circle in millimeters. Equivalent to the 
+        bending radius of the spherical analyzer.
+    bragg : float
+        Bragg angle in degrees. 
+    alpha : float, default 0.0
+        Asymmetry angle in degrees. Optional input, defaults to 0.
 
     Attributes
     ----------
+    diameter : float
+        Rowland-circle diameter in millimeters.
+    bragg : float
+        Bragg angle in degrees.
+    alpha : float
+        Asymmetry angle in degrees.
+    chord_rho : float
+        Source-to-analyzer distance.
+    chord_fm : float
+        Analyzer-to-meridional-focus distance.
+    chord_fs : float
+        Analyzer-to-sagittal-focus distance.
+    pos_source : numpy.ndarray
+        Source coordinates in the canonical reference frame.
+    pos_analyzer : numpy.ndarray
+        Analyzer coordinates in the canonical reference frame.
+    pos_meridional : numpy.ndarray
+        Meridional focus coordinates in the canonical reference frame.
+    pos_sagittal : numpy.ndarray
+        Sagittal focus coordinates in the canonical reference frame.
+    pos_center : numpy.ndarray
+        Rowland circle center coordinates in the canonical reference frame.
 
     Methods
     -------
+    foci_extents(optic_diameter)
+        Calculates the focal sizes of the meridional and sagittal foci. 
+    
+    as_dict()
+        Returns a summary of the Rowland circle geometry.
+    
+    copy()
+        Makes a new copy of the Rowland circle.
 
     Notes
     -----
+    The Rowland-circle diameter is equal to the bending radius of the spherical
+    analyzer.
+
+    Changing ``diameter``, ``bragg``, or ``alpha`` automatically recalculates
+    all chord lengths and coordinates. The class is otherwise immutable, i.e.
+    geometry changes cannot be driven by changing the chord_rho for example.
+    Coordinate properties return copies so that the stored geometry cannot be
+    modified externally.
+
+    The coordinates of the Rowland circle elements are defined in a canonical
+    reference frame. This is defined with the analyzer at the origin ``(0, 0)`` 
+    and the Rowland circle center located at ``(0, R)``, where R is the radius of 
+    the Rowland circle. The source is always located to the left of the foci. 
+    For coordinates in a different reference frame, see the Spectrometer class 
+    and module.
 
     Examples
     --------
+
+    Create a Rowland circle and inspect a derived chord length:
+
+    >>> circle = RowlandCircle(diameter=500, bragg=70, alpha=10)
+    >>> circle.chord_fm
+    433.013...
+
+    Changing the Bragg angle recalculates the geometry:
+
+    >>> circle.bragg = 85
+    >>> circle.chord_fm
+    482.962...
+
+    Calculate the focal extents for a 100 mm optic:
+
+    >>> circle.foci_extents(optic_diameter=100)
+    {'optic_diameter': 100.0,
+     'extent_meridional': 7.435...,
+     'extent_sagittal': 7.763...}
+
+    Return the geometry as a dictionary:
+
+    >>> circle.as_dict()
+    {'diameter': 500.0,
+     'bragg': 85.0,
+     'alpha': 10.0,
+     'chord_rho': 498.097...,
+     'chord_fm': 482.962...,
+     'chord_fs': 521.630...,
+     'pos_source': [43.412..., 496.201..., 0.0],
+     'pos_analyzer': [0.0, 0.0, 0.0],
+     'pos_meridional': [125.0, 466.506..., 0.0],
+     'pos_sagittal': [135.007..., 503.856..., 0.0],
+     'pos_center': [0.0, 250.0, 0.0]}
     """
 
     def __init__(
@@ -59,16 +140,39 @@ class RowlandCircle:
         self._bragg = _validate_bragg(bragg)
         self._alpha = _validate_alpha(alpha)
         
-        self.calculate_geometry()
-        
-    def calculate_geometry(self) -> None:
-        """Compute chord lengths and coordinates from current parameters."""
-        self._calculate_chords()
-        self._calculate_coords()
+        self._recalculate_geometry()
 
-    def as_dict(self, *, optic_diameter: float | None = None) -> dict:
-        """Return a serializable summary of the geometry."""
-        data= {
+    def foci_extents(self, optic_diameter: float) -> dict:
+        """
+        Calculate the meridional and sagittal focal extents.
+
+        Parameters
+        ----------
+        optic_diameter : float
+            Diameter of the analyzer in millimeters.
+
+        Returns
+        -------
+        dict
+            Optic diameter and the meridional and sagittal focal extents.
+        """
+        od = _validate_length(optic_diameter)
+        return {
+            "optic_diameter": od,
+            "extent_meridional": self._calc_extent_meridional(od),
+            "extent_sagittal": self._calc_extent_sagittal(od),
+        }
+    
+    def as_dict(self) -> dict:
+        """
+        Return a serializable summary of the current geometry.
+
+        Returns
+        -------
+        dict
+            Circle parameters, chord lengths, and canonical coordinates.
+        """
+        data = {
             "diameter": self.diameter,
             "bragg": self.bragg,
             "alpha": self.alpha,
@@ -81,219 +185,187 @@ class RowlandCircle:
             "pos_sagittal": self.pos_sagittal.tolist(),
             "pos_center": self.pos_center.tolist(),
         }
-        if optic_diameter is not None:
-            data["focus"] = self.focus_extents(optic_diameter)
         return data
 
-    # --- core parameters as properties ---
+    def copy(self) -> "RowlandCircle":
+        """
+        Return a copy of the RowlandCircle object.
+
+        Returns
+        -------
+        RowlandCircle
+        """
+        return type(self)(
+            diameter=self.diameter,
+            bragg=self.bragg,
+            alpha=self.alpha,
+        )
 
     @property
     def diameter(self) -> float:
+        """Rowland circle diameter in millimeters"""
         return self._diameter
+
+    @property
+    def bragg(self) -> float:
+        """Bragg angle in degrees."""
+        return self._bragg
+
+    @property
+    def alpha(self) -> float:
+        """Asymmetry angle in degrees."""
+        return self._alpha
 
     @diameter.setter
     def diameter(self, value: float) -> None:
         self._diameter = _validate_length(value)
-        self.calculate_geometry()
-
-    @property
-    def radius(self) -> float:
-        """Rowland radius = diameter / 2."""
-        return self._diameter / 2.0
-
-    @property
-    def bragg(self) -> float:
-        return self._bragg
+        self._recalculate_geometry()
 
     @bragg.setter
     def bragg(self, value: float) -> None:
         self._bragg = _validate_bragg(value)
-        self.calculate_geometry()
-
-    @property
-    def alpha(self) -> float:
-        return self._alpha
+        self._recalculate_geometry()
 
     @alpha.setter
     def alpha(self, value: float) -> None:
         self._alpha = _validate_alpha(value)
-        self.calculate_geometry()
+        self._recalculate_geometry()
 
-    def extent_meridional(self, optic_diameter: float) -> float:
-        d = _validate_length(optic_diameter)
+    @property
+    def chord_rho(self) -> float:
+        """Length from source to analyzer."""
+        return self._chord_rho
 
-        fs = float(self.chord_fs)
-        if not np.isfinite(fs) or fs == 0.0:
-            raise ValueError("Cannot compute extent: chord_fs is zero or non-finite")
+    @property
+    def chord_fm(self) -> float:
+        """Length from analyzer to meridional focus (on-circle)."""
+        return self._chord_fm
 
-        # manuscript form: 2(fs - fm) * tan(d / 2fs)
-        extent = 2.0 * (self.chord_fs - self.chord_fm) * np.tan(d / (2*fs))
-        return float(abs(extent))
+    @property
+    def chord_fs(self) -> float:
+        """Length from analyzer to sagittal focus (off-circle)."""
+        return self._chord_fs
 
-    def extent_sagittal(self, optic_diameter: float) -> float:
-        d = _validate_length(optic_diameter)
+    @property
+    def pos_source(self) -> np.ndarray:
+        """Coordinates of the source in the canonical reference frame."""
+        return self._pos_source.copy()
 
-        rho = float(self.chord_rho)
-        if not np.isfinite(rho) or rho == 0.0:
-            raise ValueError("Cannot compute extent: chord_rho is zero or non-finite")
+    @property
+    def pos_analyzer(self) -> np.ndarray:
+        """Coordinates of the analyzer in the canonical reference frame."""
+        return self._pos_analyzer.copy()
 
-        gamma = 2.0 * np.arctan(d / (2.0 * rho))
-        extent = 2.0 * (self.chord_fs - self.chord_fm) * np.tan(gamma / 2.0)
-        return float(abs(extent))
+    @property
+    def pos_meridional(self) -> np.ndarray:
+        """Coordinates of the meridional focus in the canonical reference frame."""
+        return self._pos_meridional.copy()
 
-    def focus_extents(self, optic_diameter: float) -> dict:
-        return {
-            "optic_diameter": float(optic_diameter),
-            "extent_meridional": self.extent_meridional(optic_diameter),
-            "extent_sagittal": self.extent_sagittal(optic_diameter),
-        }
-    
-    # -------- geometry calculations --------
-    
-    def _calculate_chords(self) -> None:
-        """Compute and cache geometric distances."""
-        self.chord_rho = self._calc_chord_rho()
-        self.chord_fm = self._calc_chord_fm()
-        self.chord_fs = self._calc_chord_fs()
+    @property
+    def pos_sagittal(self) -> np.ndarray:
+        """Coordinates of the sagittal focus in the canonical reference frame."""
+        return self._pos_sagittal.copy()
 
-    def _calculate_coords(self) -> None:
-        """Compute and cache coordinates for source, analyzer, and astigmatic foci."""
-        self.pos_source = self._calc_coord_source()
-        self.pos_analyzer = self._calc_coord_analyzer()
-        self.pos_meridional = self._calc_coord_meridional()
-        self.pos_sagittal = self._calc_coord_sagittal()
-        self.pos_center = self._calc_coord_center()
+    @property
+    def pos_center(self) -> np.ndarray:
+        """Coordinates of the Rowland circle center in the canonical reference frame."""
+        return self._pos_center.copy()
+
+    def _recalculate_geometry(self) -> None:
+        """Compute chord lengths and coordinates from current parameters."""
+        chord_rho = self._calc_chord_rho()
+        chord_fm = self._calc_chord_fm()
+        chord_fs = self._calc_chord_fs()
+
+        pos_source = self._calc_coord_source(chord_rho)
+        pos_analyzer = self._calc_coord_analyzer()
+        pos_meridional = self._calc_coord_meridional(chord_fm)
+        pos_sagittal = self._calc_coord_sagittal(chord_fs)
+        pos_center = self._calc_coord_center()
+
+        self._chord_rho = chord_rho
+        self._chord_fm = chord_fm
+        self._chord_fs = chord_fs
+
+        self._pos_source = pos_source
+        self._pos_analyzer = pos_analyzer
+        self._pos_meridional = pos_meridional
+        self._pos_sagittal = pos_sagittal
+        self._pos_center = pos_center
         
     def _calc_chord_rho(self) -> float:
         """Compute source-analyzer chord length."""
-        # ρ = D * sin(θB + α)
+        # rho = D * sin(bragg + alpha)
         angle = np.radians(self.bragg + self.alpha)
-        return self.diameter * np.sin(angle)
+        return float(self.diameter * np.sin(angle))
         
     def _calc_chord_fm(self) -> float:
         """Compute analyzer–meridional-focus (on-circle) chord length."""
-        # fm = D * sin(θB − α)
+        # fm = D * sin(bragg − alpha)
         angle = np.radians(self.bragg - self.alpha)
-        return self.diameter * np.sin(angle)
+        return float(self.diameter * np.sin(angle))
 
     def _calc_chord_fs(self) -> float:
         """Compute analyzer–sagittal-focus (off-circle) chord length."""
-        # fs = - D * sin^2(θB + α) / [sin(θB − α) * cos(2(θB + α))]
+        if np.isclose(self.bragg, self.alpha):
+            raise ValueError(
+                "Sagittal focus is undefined when bragg equals alpha."
+            )
+
+        if np.isclose(self.bragg + self.alpha, 45.0):
+            raise ValueError(
+                "Sagittal focus diverges when bragg + alpha equals 45 degrees."
+            )
+
+        # fs = - D * sin^2(bragg + alpha) / [sin(bragg − alpha) * cos(2(bragg + alpha))]
         angle_pos = np.radians(self.bragg + self.alpha)
         angle_neg = np.radians(self.bragg - self.alpha)
         numerator = np.sin(angle_pos) ** 2
         s = np.sin(angle_neg)
         c = np.cos(2 * angle_pos)
-        
-        # tolerance in trig-space; tune if you want earlier/later flagging
-        eps = 1e-6
-
-        if abs(s) < eps:
-            delta_deg = float(self.bragg - self.alpha)
-            raise ValueError(
-                "Singular Rowland geometry computing chord_fs: sin(bragg - alpha) ≈ 0.\n"
-                f"  bragg={self.bragg:.6g} deg, alpha={self.alpha:.6g} deg "
-                f"(bragg-alpha={delta_deg:.6g} deg)\n"
-                "This corresponds to bragg ≈ alpha, where fm = D*sin(bragg-alpha) → 0 and "
-                "the fs expression divides by ~0.\n"
-                "Move away by changing bragg or alpha so |bragg-alpha| is not near 0."
-            )
-
-        # 2*(bragg+alpha) ≈ 90°  <=>  bragg+alpha ≈ 45°
-        if abs(c) < eps:
-            sum_deg = float(self.bragg + self.alpha)
-            raise ValueError(
-                "Singular Rowland geometry computing chord_fs: cos(2*(bragg + alpha)) ≈ 0.\n"
-                f"  bragg={self.bragg:.6g} deg, alpha={self.alpha:.6g} deg "
-                f"(bragg+alpha={sum_deg:.6g} deg)\n"
-                "This corresponds to bragg + alpha ≈ 45°, where the analytic sagittal-focus "
-                "distance diverges (sagittal focus → ∞).\n"
-                "Move away by changing bragg or alpha so (bragg+alpha) is not near 45°."
-            )
-            
-        return -self.diameter * numerator / (s * c)
+        return float(-self.diameter * numerator / (s * c))
     
+    def _calc_coord_source(self, chord_rho: float) -> np.ndarray:
+        """Compute source coordinates (canonical frame)."""
+        angle = np.radians(self.bragg + self.alpha)
+        x = chord_rho * np.cos(angle)
+        y = chord_rho * np.sin(angle)
+        return np.array([-x, y, 0.0])
+
     def _calc_coord_analyzer(self) -> np.ndarray:
         """Compute analyzer coordinates (canonical frame)."""
         return np.array([0.0, 0.0, 0.0])
     
-    def _calc_coord_source(self) -> np.ndarray:
-        """Compute source coordinates (canonical frame)."""
-        angle = np.radians(self.bragg + self.alpha)
-        x = self.chord_rho * np.cos(angle)
-        y = self.chord_rho * np.sin(angle)
-        return np.array([-x, y, 0.0])
-
-    def _calc_coord_meridional(self) -> np.ndarray:
+    def _calc_coord_meridional(self, chord_fm: float) -> np.ndarray:
         """Compute meridional focus coordinates (canonical frame)."""
         angle = np.radians(self.bragg - self.alpha)
-        x = self.chord_fm * np.cos(angle)
-        y = self.chord_fm * np.sin(angle)
+        x = chord_fm * np.cos(angle)
+        y = chord_fm * np.sin(angle)
         return np.array([x, y, 0.0])
 
-    def _calc_coord_sagittal(self) -> np.ndarray:
+    def _calc_coord_sagittal(self, chord_fs: float) -> np.ndarray:
         """Compute sagittal focus coordinates (canonical frame)."""
         angle = np.radians(self.bragg - self.alpha)
-        x = self.chord_fs * np.cos(angle)
-        y = self.chord_fs * np.sin(angle)
+        x = chord_fs * np.cos(angle)
+        y = chord_fs * np.sin(angle)
         return np.array([x, y, 0.0])
     
     def _calc_coord_center(self) -> np.ndarray:
         """Compute Rowland circle center coordinates (canonical frame)."""
-        return np.array([0.0, self.radius, 0.0])
+        return np.array([0.0, self.diameter/2.0, 0.0])
 
-    def copy(self) -> "RowlandCircle":
-        """Return a copy of this RowlandCircle WITHOUT recomputing geometry."""
-        new = RowlandCircle.__new__(RowlandCircle)
+    def _calc_extent_meridional(self, optic_diameter: float) -> float:
+        """Return the meridional focal size, perpendicular to the Rowland plane"""
+        # manuscript form: 2(fs - fm) * tan(d / 2fs)
+        tangent = np.tan(optic_diameter / (2*self.chord_fs))
+        extent = (2.0 * (self.chord_fs - self.chord_fm) * tangent)
+        return float(abs(extent))
 
-        # core params
-        new._diameter = float(self._diameter)
-        new._bragg = float(self._bragg)
-        new._alpha = float(self._alpha)
-
-        # cached chords
-        new.chord_rho = float(self.chord_rho)
-        new.chord_fm = float(self.chord_fm)
-        new.chord_fs = float(self.chord_fs)
-
-        # cached coords (copy arrays)
-        new.pos_source = np.array(self.pos_source, dtype=float, copy=True)
-        new.pos_analyzer = np.array(self.pos_analyzer, dtype=float, copy=True)
-        new.pos_meridional = np.array(self.pos_meridional, dtype=float, copy=True)
-        new.pos_sagittal = np.array(self.pos_sagittal, dtype=float, copy=True)
-        new.pos_center = np.array(self.pos_center, dtype=float, copy=True)
-
-        return new
-
-    @classmethod
-    def from_analyzer(
-        cls,
-        analyzer: "Analyzer",
-        *,
-        bragg: float | None = None,
-        energy: float | None = None,
-    ) -> "RowlandCircle":
-        """
-        Construct a RowlandCircle from an Analyzer and either a Bragg angle or energy.
-        """
-        if analyzer.bending_radius is None:
-            raise ValueError("Analyzer has no bending_radius defined.")
-            
-        # exactly one of bragg / energy
-        if (bragg is None) == (energy is None):
-            raise ValueError("Specify exactly one of 'bragg' or 'energy'")
-
-        # compute bragg if only energy given
-        if energy is not None:
-            bragg_val = analyzer.bragg(energy)
-        else:
-            bragg_val = float(bragg)
-
-        return cls(
-            diameter=analyzer.bending_radius,
-            bragg=bragg_val,
-            alpha=analyzer.alpha,
-        )
+    def _calc_extent_sagittal(self, optic_diameter: float) -> float:
+        """Return the sagittal focal size, parallel to the Rowland plane"""
+        gamma = 2.0 * np.arctan(optic_diameter / (2.0 * self.chord_rho))
+        extent = 2.0 * (self.chord_fs - self.chord_fm) * np.tan(gamma / 2.0)
+        return float(abs(extent))
 
 def _validate_length(length: float) -> float:
     """
