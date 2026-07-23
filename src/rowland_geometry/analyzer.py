@@ -34,9 +34,9 @@ class Analyzer:
         Radius of curvature of the analyzer surface in millimetres.
     cut : Sequence[int], optional
         Miller indices of the nominally surface coincident plane family. 
-        Defaults to `reflection`.
+        Defaults to ``reflection``.
     miscut : float, default 0.0
-        Miscut angle between surface profile and `cut` plane family in degrees.
+        Miscut angle between surface profile and ``cut`` plane family in degrees.
     optic_diameter : float, default 100.0
         Optic diameter in millimetres.
 
@@ -55,11 +55,11 @@ class Analyzer:
     d_hkl : float
         Interplanar spacing of the diffracting plane family in angstroms.
     miscut : float
-        Miscut angle between surface profile and `cut` plane family in degrees.
+        Miscut angle between surface profile and ``cut`` plane family in degrees.
     crystal_asymmetry : float
-        Angle in degrees between the reflection and cut plane families.
+        Angle in degrees between the ``reflection`` and ``cut`` plane families.
     asymmetry : float
-        Total asymmetry angle in degrees, the sum of crystal_asymmetry and miscut.
+        Total asymmetry angle in degrees, the sum of ``crystal_asymmetry`` and ``miscut``.
     e0 : float
         Analyzed photon energy at backscattering (Bragg angle = 90) of the 
         specified reflection in eV.
@@ -68,11 +68,11 @@ class Analyzer:
     -------
     to_energy()
         Computes the analyzed photon energy in eV for a given Bragg angle in 
-        degrees for the specified plane family `reflection`.
+        degrees for the specified plane family ``reflection``.
 
     to_bragg()
         Computes the Bragg angle in degrees for a given analyzed photon energy
-        in eV for the specified plane family `reflection`.
+        in eV for the specified plane family ``reflection``.
 
     as_dict()
         Returns the analyzer parameters and derived quantities as a dictionary.
@@ -181,17 +181,17 @@ class Analyzer:
 
     @property
     def miscut(self) -> float:
-        """Miscut angle (deg) between the wafer surface and the 'cut' of the optic."""
+        """Miscut angle (deg) between the wafer surface and the ``cut`` of the optic."""
         return self._miscut
 
     @property
     def crystal_asymmetry(self) -> float:
-        """Crystallographic angle between the reflection and cut planes in degrees."""
+        """Crystallographic angle between the ``reflection`` and ``cut`` planes in degrees."""
         return self._crystal_asymmetry
 
     @property
     def asymmetry(self) -> float:
-        """Total asymmetry angle alpha (deg), sum of miscut and crystal_asymmetry."""
+        """Total asymmetry angle alpha (deg), sum of ``miscut`` and ``crystal_asymmetry``."""
         return self._crystal_asymmetry + self._miscut
 
     @property
