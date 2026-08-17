@@ -79,8 +79,8 @@ class Analyzer:
 
     Notes
     -----
-    All optic dimensions are in [mm], interplanar spacings are in [angstrom], 
-    photon energies are in [eV] and all angles are in [deg].
+    All optic dimensions are in ``mm``, interplanar spacings are in ``angstrom``, 
+    photon energies are in ``eV`` and all angles are in ``deg``.
     
     The public properties of the class are read only. A new Analyzer object 
     must be instantiated to change the parameters such as the reflection or 
