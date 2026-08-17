@@ -94,9 +94,10 @@ class Analyzer:
     surface and the nominal surface-cut plane family. For an SBCA, this angle is 
     nominally zero and the cut plane family is parallel to the analyzer surface.
 
-    The crystal_asymmetry quantity is the crystallographic angle between the diffracting
-    plane family and the cut plane family. It is independent of wafer miscut.
-    The total asymmetry angle is therefore asymmetry = crystal_asymmetry + miscut.
+    The ``crystal_asymmetry`` quantity is the crystallographic angle between the 
+    ``reflection`` plane family and the ``cut`` plane family. It is independent
+    of wafer ``miscut``. The total asymmetry angle is therefore 
+    ``asymmetry = crystal_asymmetry + miscut``.
 
     Examples
     --------
