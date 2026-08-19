@@ -5,7 +5,7 @@ circle focusing geometry.
 
 The geometric relations of the Rowland circle elements are driven by the 
 diameter of the Rowland circle (equal to the bending radius of the spherical
-optic), the Bragg angle, and alpha, the asymmetry angle.
+optic), the Bragg angle, and the asymmetry angle.
 
 The Rowland circle is central in the design of energy-scanning X-ray 
 spectrometers. Thus the implementation of the class here is mutable - the same
@@ -33,7 +33,7 @@ class RowlandCircle:
         bending radius of the spherical analyzer.
     bragg : float
         Bragg angle in degrees. 
-    alpha : float, default 0.0
+    asymmetry : float, default 0.0
         Asymmetry angle in degrees. Optional input, defaults to 0.
 
     Attributes
@@ -42,7 +42,7 @@ class RowlandCircle:
         Rowland-circle diameter in millimeters.
     bragg : float
         Bragg angle in degrees.
-    alpha : float
+    asymmetry : float
         Asymmetry angle in degrees.
     chord_rho : float
         Source-to-analyzer distance.
@@ -77,7 +77,7 @@ class RowlandCircle:
     The Rowland-circle diameter is equal to the bending radius of the spherical
     analyzer.
 
-    Changing ``diameter``, ``bragg``, or ``alpha`` automatically recalculates
+    Changing ``diameter``, ``bragg``, or ``asymmetry`` automatically recalculates
     all chord lengths and coordinates. The class is otherwise immutable, i.e.
     geometry changes cannot be driven by changing the chord_rho for example.
     Coordinate properties return copies so that the stored geometry cannot be
@@ -95,7 +95,7 @@ class RowlandCircle:
 
     Create a Rowland circle and inspect a derived chord length:
 
-    >>> circle = RowlandCircle(diameter=500, bragg=70, alpha=10)
+    >>> circle = RowlandCircle(diameter=500, bragg=70, asymmetry=10)
     >>> circle.chord_fm
     433.013...
 
@@ -117,7 +117,7 @@ class RowlandCircle:
     >>> circle.as_dict()
     {'diameter': 500.0,
      'bragg': 85.0,
-     'alpha': 10.0,
+     'asymmetry': 10.0,
      'chord_rho': 498.097...,
      'chord_fm': 482.962...,
      'chord_fs': 521.630...,
@@ -133,12 +133,12 @@ class RowlandCircle:
         diameter: float,
         bragg: float,
         *,
-        alpha: float = 0.0,
+        asymmetry: float = 0.0,
     ):
                     
         self._diameter = _validate_length(diameter)
         self._bragg = _validate_bragg(bragg)
-        self._alpha = _validate_alpha(alpha)
+        self._asymmetry = _validate_asymmetry(asymmetry)
         
         self._recalculate_geometry()
 
@@ -175,7 +175,7 @@ class RowlandCircle:
         data = {
             "diameter": self.diameter,
             "bragg": self.bragg,
-            "alpha": self.alpha,
+            "asymmetry": self.asymmetry,
             "chord_rho": self.chord_rho,
             "chord_fm": self.chord_fm,
             "chord_fs": self.chord_fs,
@@ -198,7 +198,7 @@ class RowlandCircle:
         return type(self)(
             diameter=self.diameter,
             bragg=self.bragg,
-            alpha=self.alpha,
+            asymmetry=self.asymmetry,
         )
 
     @property
@@ -212,9 +212,9 @@ class RowlandCircle:
         return self._bragg
 
     @property
-    def alpha(self) -> float:
+    def asymmetry(self) -> float:
         """Asymmetry angle in degrees."""
-        return self._alpha
+        return self._asymmetry
 
     @diameter.setter
     def diameter(self, value: float) -> None:
@@ -226,9 +226,9 @@ class RowlandCircle:
         self._bragg = _validate_bragg(value)
         self._recalculate_geometry()
 
-    @alpha.setter
-    def alpha(self, value: float) -> None:
-        self._alpha = _validate_alpha(value)
+    @asymmetry.setter
+    def asymmetry(self, value: float) -> None:
+        self._asymmetry = _validate_asymmetry(value)
         self._recalculate_geometry()
 
     @property
@@ -295,31 +295,31 @@ class RowlandCircle:
         
     def _calc_chord_rho(self) -> float:
         """Compute source-analyzer chord length."""
-        # rho = D * sin(bragg + alpha)
-        angle = np.radians(self.bragg + self.alpha)
+        # rho = D * sin(bragg + asymmetry)
+        angle = np.radians(self.bragg + self.asymmetry)
         return float(self.diameter * np.sin(angle))
         
     def _calc_chord_fm(self) -> float:
         """Compute analyzer–meridional-focus (on-circle) chord length."""
-        # fm = D * sin(bragg − alpha)
-        angle = np.radians(self.bragg - self.alpha)
+        # fm = D * sin(bragg − asymmetry)
+        angle = np.radians(self.bragg - self.asymmetry)
         return float(self.diameter * np.sin(angle))
 
     def _calc_chord_fs(self) -> float:
         """Compute analyzer–sagittal-focus (off-circle) chord length."""
-        if np.isclose(self.bragg, self.alpha):
+        if np.isclose(self.bragg, self.asymmetry):
             raise ValueError(
-                "Sagittal focus is undefined when bragg equals alpha."
+                "Sagittal focus is undefined when bragg equals asymmetry."
             )
 
-        if np.isclose(self.bragg + self.alpha, 45.0):
+        if np.isclose(self.bragg + self.asymmetry, 45.0):
             raise ValueError(
-                "Sagittal focus diverges when bragg + alpha equals 45 degrees."
+                "Sagittal focus diverges when bragg + asymmetry equals 45 degrees."
             )
 
-        # fs = - D * sin^2(bragg + alpha) / [sin(bragg − alpha) * cos(2(bragg + alpha))]
-        angle_pos = np.radians(self.bragg + self.alpha)
-        angle_neg = np.radians(self.bragg - self.alpha)
+        # fs = - D * sin^2(bragg + asymmetry) / [sin(bragg − asymmetry) * cos(2(bragg + asymmetry))]
+        angle_pos = np.radians(self.bragg + self.asymmetry)
+        angle_neg = np.radians(self.bragg - self.asymmetry)
         numerator = np.sin(angle_pos) ** 2
         s = np.sin(angle_neg)
         c = np.cos(2 * angle_pos)
@@ -327,7 +327,7 @@ class RowlandCircle:
     
     def _calc_coord_source(self, chord_rho: float) -> np.ndarray:
         """Compute source coordinates (canonical frame)."""
-        angle = np.radians(self.bragg + self.alpha)
+        angle = np.radians(self.bragg + self.asymmetry)
         x = chord_rho * np.cos(angle)
         y = chord_rho * np.sin(angle)
         return np.array([-x, y, 0.0])
@@ -338,14 +338,14 @@ class RowlandCircle:
     
     def _calc_coord_meridional(self, chord_fm: float) -> np.ndarray:
         """Compute meridional focus coordinates (canonical frame)."""
-        angle = np.radians(self.bragg - self.alpha)
+        angle = np.radians(self.bragg - self.asymmetry)
         x = chord_fm * np.cos(angle)
         y = chord_fm * np.sin(angle)
         return np.array([x, y, 0.0])
 
     def _calc_coord_sagittal(self, chord_fs: float) -> np.ndarray:
         """Compute sagittal focus coordinates (canonical frame)."""
-        angle = np.radians(self.bragg - self.alpha)
+        angle = np.radians(self.bragg - self.asymmetry)
         x = chord_fs * np.cos(angle)
         y = chord_fs * np.sin(angle)
         return np.array([x, y, 0.0])
@@ -387,12 +387,12 @@ def _validate_bragg(bragg: float) -> float:
         raise ValueError("Bragg angle must be finite and satisfy 0 < Bragg < 90.")
     return bragg
 
-def _validate_alpha(alpha: float) -> float:
+def _validate_asymmetry(asymmetry: float) -> float:
     """
     Validate and normalize scalar inputs to the Rowland Circle class.
     Raises specific errors for incorrect formats. Must be in degrees.
     """
-    alpha = float(alpha)
-    if not np.isfinite(alpha) or abs(alpha) >= 90:
-        raise ValueError("alpha angle must be finite and satisfy -90 < alpha < 90.")
-    return alpha
+    asymmetry = float(asymmetry)
+    if not np.isfinite(asymmetry) or abs(asymmetry) >= 90:
+        raise ValueError("asymmetry angle must be finite and satisfy -90 < asymmetry < 90.")
+    return asymmetry
