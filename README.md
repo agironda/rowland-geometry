@@ -4,6 +4,7 @@ A package for tracking the position of optical elements of an X-ray spectrometer
 
 ## Installation
 
+-- this does NOT work yet.
 ```bash
 $ pip install rowland_geometry
 ```
