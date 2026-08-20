@@ -173,7 +173,7 @@ class RowlandSpectrometer:
     def analyzer(self, analyzer: Analyzer) -> None:
         """
         Changes the optic (or the reflection) and regenerates the Rowland
-        geometry at the current ``bragg`` angle.
+        geometry at the current ``bragg`` angle. -- this really should regenerate at the same bragg+alpha, not the same bragg
         """
         if not isinstance(analyzer, Analyzer):
             raise TypeError("analyzer must be an Analyzer")
