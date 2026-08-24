@@ -78,8 +78,10 @@ class RowlandCircle:
     analyzer.
 
     Changing ``diameter``, ``bragg``, or ``asymmetry`` automatically recalculates
-    all chord lengths and coordinates. The class is otherwise immutable, i.e.
-    geometry changes cannot be driven by changing the chord_rho for example.
+    all chord lengths and coordinates. ``chord_rho`` and ``chord_fm`` may also be 
+    assigned to solve inversely for the Bragg angle. ``chord_fs`` is read-only 
+    because the sagittal focus equation does not have a simple inverse.
+
     Coordinate properties return copies so that the stored geometry cannot be
     modified externally.
 
@@ -216,6 +218,21 @@ class RowlandCircle:
         """Asymmetry angle in degrees."""
         return self._asymmetry
 
+    @property
+    def chord_rho(self) -> float:
+        """Length from source to analyzer."""
+        return self._chord_rho
+
+    @property
+    def chord_fm(self) -> float:
+        """Length from analyzer to meridional focus (on-circle)."""
+        return self._chord_fm
+
+    @property
+    def chord_fs(self) -> float:
+        """Length from analyzer to sagittal focus (off-circle)."""
+        return self._chord_fs
+
     @diameter.setter
     def diameter(self, value: float) -> None:
         self._diameter = _validate_length(value)
@@ -231,20 +248,13 @@ class RowlandCircle:
         self._asymmetry = _validate_asymmetry(value)
         self._recalculate_geometry()
 
-    @property
-    def chord_rho(self) -> float:
-        """Length from source to analyzer."""
-        return self._chord_rho
+    @chord_rho.setter
+    def chord_rho(self, value: float) -> None:
+        self.bragg = self._calc_bragg_from_chord(value, asymmetry_sign=-1.0)
 
-    @property
-    def chord_fm(self) -> float:
-        """Length from analyzer to meridional focus (on-circle)."""
-        return self._chord_fm
-
-    @property
-    def chord_fs(self) -> float:
-        """Length from analyzer to sagittal focus (off-circle)."""
-        return self._chord_fs
+    @chord_fm.setter
+    def chord_fm(self, value: float) -> None:
+        self.bragg = self._calc_bragg_from_chord(value, asymmetry_sign=1.0)
 
     @property
     def pos_source(self) -> np.ndarray:
@@ -366,6 +376,34 @@ class RowlandCircle:
         gamma = 2.0 * np.arctan(optic_diameter / (2.0 * self.chord_rho))
         extent = 2.0 * (self.chord_fs - self.chord_fm) * np.tan(gamma / 2.0)
         return float(abs(extent))
+    
+    def _calc_bragg_from_chord(self, chord: float, asymmetry_sign: float) -> float:
+        """Return the nearest valid Bragg angle for a specified chord length."""
+        chord = _validate_length(chord)
+        if chord > self.diameter: 
+            raise ValueError("Chord cannot exceed diameter.")
+
+        angle = np.degrees(np.asin(chord / self.diameter))
+
+        options = [
+            angle + asymmetry_sign * self.asymmetry,
+            180.0 - angle + asymmetry_sign * self.asymmetry,
+        ]
+
+        options = [
+            bragg for bragg in options
+            if 0.0 < bragg < 90.0
+        ]
+
+        if not options:
+            raise ValueError(
+                "Chord is incompatible with the current diameter and asymmetry."
+            )
+
+        return min(
+            options,
+            key=lambda bragg: abs(bragg - self.bragg),
+        )
 
 def _validate_length(length: float) -> float:
     """
