@@ -317,23 +317,24 @@ class RowlandCircle:
 
     def _calc_chord_fs(self) -> float:
         """Compute analyzer–sagittal-focus (off-circle) chord length."""
-        if np.isclose(self.bragg, self.asymmetry):
+
+        # fs = R * sin(bragg + a) / (2 * sin(bragg) * cos(a) * sin(bragg + a)) - 1) 
+        # Rearranged from Eq. (1), Podorov et al. (2001),
+        # J. Phys. D: Appl. Phys. 34, 2363–2368.
+
+        sin_ba = np.sin(np.radians(self.bragg + self.asymmetry))
+        sin_b  = np.sin(np.radians(self.bragg))
+        cos_a  = np.cos(np.radians(self.asymmetry))
+
+        numerator = self.diameter * sin_ba
+        denominator = 2 * sin_b * cos_a * sin_ba - 1
+
+        if np.isclose(denominator, 0.0):
             raise ValueError(
-                "Sagittal focus is undefined when bragg equals asymmetry."
+                "Sagittal focus diverges for this Bragg and asymmetry angle."
             )
 
-        if np.isclose(self.bragg + self.asymmetry, 45.0):
-            raise ValueError(
-                "Sagittal focus diverges when bragg + asymmetry equals 45 degrees."
-            )
-
-        # fs = - D * sin^2(bragg + asymmetry) / [sin(bragg − asymmetry) * cos(2(bragg + asymmetry))]
-        angle_pos = np.radians(self.bragg + self.asymmetry)
-        angle_neg = np.radians(self.bragg - self.asymmetry)
-        numerator = np.sin(angle_pos) ** 2
-        s = np.sin(angle_neg)
-        c = np.cos(2 * angle_pos)
-        return float(-self.diameter * numerator / (s * c))
+        return float(numerator / denominator)
     
     def _calc_coord_source(self, chord_rho: float) -> np.ndarray:
         """Compute source coordinates (canonical frame)."""
