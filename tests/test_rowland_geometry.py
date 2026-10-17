@@ -1,1 +1,0 @@
-from rowland_geometry import rowland_geometry
