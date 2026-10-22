@@ -14,13 +14,87 @@ class DispersiveRefocusing:
         *,
         asymmetry: float = 0.0,
     ):
-
         self._on_circle_geometry = RowlandCircle(diameter, bragg, asymmetry=asymmetry)
-
         self._displacement = _validate_displacement(displacement, self._on_circle_geometry.chord_rho)
         self._optic_diameter = _validate_optic_diameter(optic_diameter, diameter)
 
-        self._pos_source = self._calculate_displaced_source()
+        self._recalculate_geometry()
+
+    @property
+    def on_circle_geometry(self) -> RowlandCircle:
+        """Unperturbed on-circle Rowland Circle geometry."""
+        return self._on_circle_geometry.copy()
+
+    @property
+    def diameter(self) -> float:
+        """Rowland circle diameter in millimeters"""
+        return self._on_circle_geometry.diameter
+
+    @property
+    def bragg(self) -> float:
+        """Bragg angle in degrees."""
+        return self._on_circle_geometry.bragg
+
+    @property
+    def asymmetry(self) -> float:
+        """Asymmetry angle in degrees."""
+        return self._on_circle_geometry.asymmetry
+
+    @property
+    def displacement(self) -> float:
+        """Displacement of source along rho in millimeters"""
+        return self._displacement
+
+    @property
+    def optic_diameter(self) -> float:
+        """Aperture size of the analyzer in millimeters"""
+        return self._optic_diameter
+
+    @diameter.setter
+    def diameter(self, value: float) -> None:
+        geometry = self.on_circle_geometry
+        geometry.diameter = value
+        _validate_optic_diameter(self.optic_diameter, geometry.diameter)
+        _validate_displacement(self.displacement, geometry.chord_rho)
+        self._on_circle_geometry.diameter = value
+        self._recalculate_geometry()
+
+    @bragg.setter
+    def bragg(self, value: float) -> None:
+        geometry = self.on_circle_geometry
+        geometry.bragg = value
+        _validate_optic_diameter(self.optic_diameter, geometry.diameter)
+        _validate_displacement(self.displacement, geometry.chord_rho)
+        self._on_circle_geometry.bragg = value
+        self._recalculate_geometry()
+
+    @asymmetry.setter
+    def asymmetry(self, value: float) -> None:
+        geometry = self.on_circle_geometry
+        geometry.asymmetry = value
+        _validate_optic_diameter(self.optic_diameter, geometry.diameter)
+        _validate_displacement(self.displacement, geometry.chord_rho)
+        self._on_circle_geometry.asymmetry = value
+        self._recalculate_geometry()
+
+    @displacement.setter
+    def displacement(self, value: float) -> None:
+        self._displacement = _validate_displacement(value, self._on_circle_geometry.chord_rho)
+        self._recalculate_geometry()
+
+    @optic_diameter.setter
+    def optic_diameter(self, value: float) -> None:
+        self._optic_diameter = _validate_optic_diameter(value, self.diameter)
+        self._recalculate_geometry()
+
+    def _recalculate_geometry(self):
+
+        self._pos_source = self._calc_displaced_source()
+        self._pos_meridional = self._calc_displaced_meridional()
+        
+        self._profile_analyzer_x = self._calc_analyzer_profile_x()
+        self._profile_analyzer_mech = self._calc_analyzer_profile_mech()
+        self._profile_analyzer_bragg = self._calc_analyzer_profile_bragg()
 
         self._analyzer_x_profile = np.linspace(
             -self._optic_diameter / 2.0, 
@@ -33,7 +107,9 @@ class DispersiveRefocusing:
 
         self._analyzer_bragg_profile = self._analyzer_ang_profile - self._on_circle_geometry.asymmetry     
 
-    def _calculate_displaced_source(self) -> np.ndarray:
+        return
+    
+    def _calc_displaced_source(self) -> np.ndarray:
         """Return source coordinates after displacement along rho."""
 
         rho = self._on_circle_geometry.chord_rho
@@ -124,3 +200,6 @@ def _validate_optic_diameter(
         )
 
     return optic_diameter
+
+
+
