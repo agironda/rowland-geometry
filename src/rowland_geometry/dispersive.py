@@ -1,5 +1,6 @@
 import numpy as np
 from .rowland_circle import RowlandCircle
+from .lens import meridional_q, sagittal_q
 
 _PROFILE_POINTS = 1001
 
@@ -17,6 +18,7 @@ class DispersiveRefocusing:
         self._on_circle_geometry = RowlandCircle(diameter, bragg, asymmetry=asymmetry)
         self._displacement = _validate_displacement(displacement, self._on_circle_geometry.chord_rho)
         self._optic_diameter = _validate_optic_diameter(optic_diameter, diameter)
+        self._profile_analyzer_x = self._calc_profile_analyzer_x()
 
         self._recalculate_geometry()
 
@@ -89,34 +91,75 @@ class DispersiveRefocusing:
 
     def _recalculate_geometry(self):
 
-        self._pos_source = self._calc_displaced_source()
-        self._pos_meridional = self._calc_displaced_meridional()
-        
-        self._profile_analyzer_x = self._calc_analyzer_profile_x()
-        self._profile_analyzer_mech = self._calc_analyzer_profile_mech()
-        self._profile_analyzer_bragg = self._calc_analyzer_profile_bragg()
+        chord_rho = self._calc_chord_rho()
+        chord_fm = self._calc_chord_fm(chord_rho)
+        chord_fs = self._calc_chord_fs(chord_rho)
 
-        self._analyzer_x_profile = np.linspace(
+        pos_source = self._calc_coord_source(chord_rho)
+        pos_meridional = self._calc_coord_meridional(chord_fm)
+        pos_sagittal = self._calc_coord_sagittal(chord_fs)
+        pos_center = self._calc_coord_center()
+
+        self._chord_rho = chord_rho
+        self._chord_fm = chord_fm
+        self._chord_fs = chord_fs
+
+        self._pos_source = pos_source
+        self._pos_meridional = pos_meridional
+        self._pos_sagittal = pos_sagittal
+        self._pos_center = pos_center
+
+        return
+
+    def _calc_chord_rho(self) -> float:
+        """Compute source-analyzer chord length."""
+        on_circle = self._on_circle_geometry
+        rho = self.displacement + on_circle.chord_rho
+        return rho
+
+    def _calc_chord_fm(self, chord_rho) -> float:
+        """Compute source-analyzer chord length."""
+        t1 = self.bragg + self.asymmetry
+        t2 = self.bragg - self.asymmetry
+        r = self.diameter
+        fm = meridional_q(chord_rho, t1, t2, r)
+        return fm
+
+    def _calc_chord_fs(self, chord_rho) -> float:
+        """Compute source-analyzer chord length."""
+        t1 = self.bragg + self.asymmetry
+        t2 = self.bragg - self.asymmetry
+        r = self.diameter
+        fs = sagittal_q(chord_rho, t1, t2, r)
+        return fs
+
+    def _calc_coord_source(self, chord_rho) -> np.ndarray:
+        on_circle = self._on_circle_geometry
+        rho_hat = on_circle.pos_source / on_circle.chord_rho
+        return chord_rho * rho_hat
+
+    def _calc_coord_meridional(self, chord_fm) -> np.ndarray:
+        on_circle = self._on_circle_geometry
+        fm_hat = on_circle.pos_meridional / on_circle.chord_fm
+        return chord_fm * fm_hat
+
+    def _calc_coord_sagittal(self, chord_fs) -> np.ndarray:
+        on_circle = self._on_circle_geometry
+        fs_hat = on_circle.pos_sagittal / on_circle.chord_fs
+        return chord_fs * fs_hat
+
+    def _calc_coord_center(self) -> np.ndarray:
+        on_circle = self._on_circle_geometry
+        return on_circle.pos_center
+
+    def _calc_profile_analyzer_x(self) -> np.ndarray:
+        return np.linspace(
             -self._optic_diameter / 2.0, 
             self._optic_diameter / 2.0, 
             _PROFILE_POINTS
             )
 
-        self._analyzer_pos_profile = self._calculate_analyzer_profile()
-        self._analyzer_ang_profile = self._calculate_mechanical_angle_profile()
 
-        self._analyzer_bragg_profile = self._analyzer_ang_profile - self._on_circle_geometry.asymmetry     
-
-        return
-    
-    def _calc_displaced_source(self) -> np.ndarray:
-        """Return source coordinates after displacement along rho."""
-
-        rho = self._on_circle_geometry.chord_rho
-        rho_hat = self._on_circle_geometry.pos_source / rho
-        rho_star = rho + self._displacement
-
-        return rho_star * rho_hat
 
     def _calculate_analyzer_pos(self, x: float) -> np.ndarray:
         """Return the analyzer-surface coordinates at x."""
