@@ -5,7 +5,7 @@ __version__ = version("rowland_geometry")
 from .analyzer import Analyzer
 from .frames import ReferenceFrame
 from .rowland_circle import RowlandCircle
-from .spectrometer import RowlandSpectrometer
+from .rowland_spectrometer import RowlandSpectrometer
 
 __all__ = [
     "Analyzer",
