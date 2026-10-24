@@ -2,7 +2,7 @@ import numpy as np
 from .rowland_circle import RowlandCircle
 from .lens import meridional_q, sagittal_q
 
-_PROFILE_POINTS = 1001
+_PROFILE_POINTS = 2**13 - 1
 
 class DispersiveRefocusing:
 
