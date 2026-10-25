@@ -19,7 +19,8 @@ CRYSTALS = {
         "name": "Silicon",
         "formula": "Si",
         "aliases": ("silicon", "si"),
-        "system": "cubic",
+        "crystal_system": "cubic",
+        "lattice_setting": "cubic",
         "a": 5.430941, # angstrom (alternate R.W.G. Wyckoff, Crystal Structures, Interscience Publ. 1965, 1, p.26 a=5.43070)
     },
     # R.W.G. Wyckoff, Crystal Structures, Interscience Publ. 1965, 1, p.26 
@@ -27,15 +28,17 @@ CRYSTALS = {
         "name": "Germanium",
         "formula": "Ge",
         "aliases": ("germanium", "ge"),
-        "system": "cubic",
-        "a": 5.65735
+        "crystal_system": "cubic",
+        "lattice_setting": "cubic",
+        "a": 5.65735 # angstrom
     },
     # R.W.G. Wyckoff, Crystal Structures, Interscience Publ. 1965, 1
     "quartz": {
         "name": "Quartz",
         "formula": "SiO2",
         "aliases": ("quartz", "sio", "sio2"),
-        "system": "hexagonal",
+        "crystal_system": "trigonal",
+        "lattice_setting": "hexagonal",
         "a": 4.91304, # angstrom
         "c": 5.40463, # angstrom
     },
@@ -44,7 +47,8 @@ CRYSTALS = {
         "name": "Sapphire",
         "formula": "Al2O3",
         "aliases": ("sapphire", "alo", "al2o3", "corundum", "sapph", "sapp"),
-        "system": "hexagonal",
+        "crystal_system": "trigonal",
+        "lattice_setting": "hexagonal",
         "a":  4.7581322, # angstrom, at 250 K
         "c": 12.9883093, # angstrom, at 250 K
     },
@@ -53,7 +57,8 @@ CRYSTALS = {
         "name": "Lithium Niobate",
         "formula": "LiNbO3",
         "aliases": ("lithium niobate", "linbo3", "linbo"),
-        "system": "hexagonal",
+        "crystal_system": "trigonal",
+        "lattice_setting": "hexagonal",
         "a":  5.148, # angstrom
         "c": 13.863, # angstrom
     },
@@ -72,8 +77,9 @@ def get_crystal(material: str) -> dict:
     Returns
     -------
     dict
-        Crystal data containing the material name, formula, aliases, crystal
-        system, and lattice parameters in angstroms.
+        Crystal data containing the material name, formula, aliases,
+        crystal system, lattice setting, and lattice parameters
+        in angstroms.
 
     Examples
     --------
@@ -144,11 +150,11 @@ def d_spacing(
     crystal = get_crystal(material)
     h, k, l = _validate_indices(crystal, reflection)
 
-    if crystal["system"] == "cubic":
+    if crystal["lattice_setting"] == "cubic":
         a = crystal["a"]
         d = a / np.sqrt(h*h + k*k + l*l)
 
-    else: # crystal["system"] == "hexagonal"
+    else: # crystal["lattice_setting"] == "hexagonal"
         a = crystal["a"]
         c = crystal["c"]
         denom = ((4/3)*(h*h + k*k + h*k)) + a*a*l*l/c/c
@@ -251,13 +257,13 @@ def _validate_indices(
     if not np.any(hkl):
         raise ValueError("Plane indices cannot all be zero")
     
-    if crystal["system"] == "cubic":
+    if crystal["lattice_setting"] == "cubic":
         if hkl.shape != (3,):
             raise ValueError(
                 "Cubic systems must use a 3-element index (h, k, l)"
             )
 
-    elif crystal["system"] == "hexagonal":
+    elif crystal["lattice_setting"] == "hexagonal":
         if hkl.shape == (4,):
             h, k, i, l = hkl
 
@@ -274,7 +280,7 @@ def _validate_indices(
 
     else:
         raise ValueError(
-            f"Unsupported crystal system {crystal['system']!r}"
+            f"Unsupported crystal system {crystal['lattice_setting']!r}"
         )
     
     return hkl
@@ -289,10 +295,10 @@ def _plane_normal(
     """
     h, k, l = _validate_indices(crystal, indices)
 
-    if crystal["system"] == "cubic":
+    if crystal["lattice_setting"] == "cubic":
         return np.array([h, k, l], dtype=float)
 
-    else: # crystal["system"] == "hexagonal":
+    elif crystal["lattice_setting"] == "hexagonal":
         a = crystal["a"]
         c = crystal["c"]
 
@@ -301,3 +307,8 @@ def _plane_normal(
             (h + 2*k) / (np.sqrt(3.0) * a),
             l / c,
         ])
+
+    else:
+        raise ValueError(
+            f"Unsupported lattice setting {crystal['lattice_setting']!r}"
+        )
