@@ -14,39 +14,41 @@ import numpy as np
 
 CRYSTALS = {
 
-    # lattice constants from Hom, Kiszenick, Post J Appl Cryst 1975
+    # Hom, Kiszenick, Post J Appl Cryst 1975
     "si": { 
         "name": "Silicon",
         "formula": "Si",
         "aliases": ("silicon", "si"),
         "system": "cubic",
-        "a": 5.430941, # angstrom
+        "a": 5.430941, # angstrom (alternate R.W.G. Wyckoff, Crystal Structures, Interscience Publ. 1965, 1, p.26 a=5.43070)
     },
+    # R.W.G. Wyckoff, Crystal Structures, Interscience Publ. 1965, 1, p.26 
     "ge": {
         "name": "Germanium",
         "formula": "Ge",
         "aliases": ("germanium", "ge"),
         "system": "cubic",
-        "a": 5.65782, # angstrom
+        "a": 5.65735
     },
-
-    # lattice constants from Hasan MRS Bulletin 2017 Iss 06 Vol 42
+    # R.W.G. Wyckoff, Crystal Structures, Interscience Publ. 1965, 1
     "quartz": {
         "name": "Quartz",
         "formula": "SiO2",
         "aliases": ("quartz", "sio", "sio2"),
         "system": "hexagonal",
-        "a": 4.914, # angstrom
-        "c": 5.405, # angstrom
+        "a": 4.91304, # angstrom
+        "c": 5.40463, # angstrom
     },
+    # Yuri Shvyd ko X-ray Optics High Energy Resolution Applications, Springer p.337
     "sapphire": {
         "name": "Sapphire",
         "formula": "Al2O3",
         "aliases": ("sapphire", "alo", "al2o3", "corundum", "sapph", "sapp"),
         "system": "hexagonal",
-        "a":  4.754, # angstrom
-        "c": 12.982, # angstrom
+        "a":  4.7581322, # angstrom, at 250 K
+        "c": 12.9883093, # angstrom, at 250 K
     },
+    # Hasan MRS Bulletin 2017 Iss 06 Vol 42
     "linbo3": {
         "name": "Lithium Niobate",
         "formula": "LiNbO3",
@@ -133,11 +135,11 @@ def d_spacing(
     >>> d_spacing("silicon", [2, 2, 0])     # cubic, 3 index input
     1.920127...
     >>> d_spacing("sapph", [1, 4, 6])       # hexagonal, 3 index input
-    0.829734...
+    0.830408...
     >>> d_spacing("linbo3", [3, 1, 0])      # hexagonal, 3 index input
     1.236509...
     >>> d_spacing("quartz", [5, 0, -5, 2])  # hexagonal, 4 index input
-    0.811819...
+    0.811670...
     """
     crystal = get_crystal(material)
     h, k, l = _validate_indices(crystal, reflection)
@@ -184,9 +186,9 @@ def plane_angle(
     >>> plane_angle("ge", [5, 5, 1], [1, 1, 1])
     27.21492...
     >>> plane_angle("sapphire", [3, 1, 0], [5, 0, 2])
-    15.63294...
-    >>> plane_angle("sapphire", [3, 1, -4, 0], [5, 0, -5, 2]) 
-    15.63294...
+    15.63418...
+    >>> plane_angle("sapphire", [3, 1, -4, 0], [5, 0, -5, 2])
+    15.63418...
     """
     crystal = get_crystal(material)
 
@@ -234,6 +236,9 @@ def _validate_indices(
     i = -(h + k) and returned as [h, k, l].
     """
     hkl = np.asarray(indices)
+
+    if hkl.dtype.kind not in ("i", "u", "f"):
+        raise ValueError("Plane indices must be real numbers")
 
     if not np.all(np.isfinite(hkl)):
         raise ValueError("Plane indices must be finite")
