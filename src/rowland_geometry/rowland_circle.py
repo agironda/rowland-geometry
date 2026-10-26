@@ -19,7 +19,7 @@ use of energy to drive the Rowland circle in a specific reference frame are
 instead handled in the spectrometer.py module and the Spectrometer class.
 """
 import numpy as np
-
+from .lens import meridional_q, sagittal_q
 
 class RowlandCircle:
     """
