@@ -266,6 +266,71 @@ class DispersiveSpectrometer:
             self._geometry.profile_analyzer_x.copy(),
             self.profile_analyzer_energy,
         )
+
+    def coords_canonical_frame(self) -> dict[str, np.ndarray]:
+        """Return dispersive geometry coordinates in the canonical reference frame."""
+        r = self._geometry
+        return {
+            "source": r.pos_source,
+            "analyzer center": r.pos_analyzer_center,
+            "analyzer edge": r.pos_analyzer_edges[0],
+            "analyzer edge": r.pos_analyzer_edges[1],
+            "meridional": r.pos_meridional,
+            "sagittal": r.pos_sagittal,
+            "center": r.pos_center,
+        }
+
+    def coords_reference_frame(self) -> dict[str, np.ndarray]:
+        """ Return coordinates in the configured reference frame."""
+        return apply_reference_frame(self.coords_canonical_frame(), self.frame)
+
+    def as_dict(self, *, include_canonical: bool = False) -> dict:
+        """
+        Return a summary of the spectrometer state.
+
+        Parameters
+        ----------
+        include_canonical
+            If True, include canonical-frame coordinates in addition to reference-frame
+            coordinates.
+
+        Returns
+        -------
+        dict
+            JSON-serializable dictionary describing analyzer, geometry, reference frame,
+            and coordinates.
+        """
+        ref_coords = self.coords_reference_frame()
+
+        data = {
+            "bragg": float(self.bragg),
+            "asymmetry": float(self.asymmetry),
+            "analyzer": self.analyzer.as_dict(),
+            "energy_center": float(self.energy),
+            "energy_width": self.energy_width(),
+            "energy_range": (np.min(self.profile_analyzer_energy),np.max(self.profile_analyzer_energy)),
+            "dispersive_geometry": {
+                "diameter": float(self._geometry.diameter),
+                "chord_rho": float(self._geometry.chord_rho),
+                "chord_fm": float(self._geometry.chord_fm),
+                "chord_fs": float(self._geometry.chord_fs),
+            },
+            "reference_frame": {
+                "origin": self.frame.origin,
+                "axis_element": self.frame.axis_element,
+                "axis": self.frame.axis,
+                "rotation": self.frame.rotation,
+                "flip_x": self.frame.flip_x,
+                "flip_y": self.frame.flip_y,
+            },
+            "coords_reference_frame": {name: coord.tolist() for name, coord in ref_coords.items()},
+        }
+
+        if include_canonical:
+            canon = self.coords_canonical_frame()
+            data["coords_canonical_frame"] = {name: coord.tolist() for name, coord in canon.items()}
+
+        return data
     
 def _validate_asymmetry_direction(value: int) -> int:
     if not isinstance(value, (int, np.integer)):
