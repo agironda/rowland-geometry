@@ -129,7 +129,17 @@ class DispersiveSpectrometer:
     @property
     def energy_width(self) -> float:
         """Energy range analyzed by the analyzer."""
-        return float(np.ptp(self.profile_analyzer_energy))
+        return self.energy_max - self.energy_min
+
+    @property
+    def energy_min(self) -> float:
+        """Minimum analyzed energy by the analyzer"""
+        return float(np.min(self.profile_analyzer_energy))
+
+    @property
+    def energy_max(self) -> float:
+        """Maximum analyzed energy by the analyzer"""
+        return float(np.max(self.profile_analyzer_energy))
 
     @frame.setter
     def frame(self, value: ReferenceFrame) -> None:
@@ -272,12 +282,12 @@ class DispersiveSpectrometer:
         r = self._geometry
         return {
             "source": r.pos_source,
-            "analyzer center": r.pos_analyzer_center,
-            "analyzer edge": r.pos_analyzer_edges[0],
-            "analyzer edge": r.pos_analyzer_edges[1],
+            "analyzer_center": r.pos_analyzer_center,
+            "analyzer_edge_1": r.pos_analyzer_edges[0],
+            "analyzer_edge_2": r.pos_analyzer_edges[1],
             "meridional": r.pos_meridional,
             "sagittal": r.pos_sagittal,
-            "center": r.pos_center,
+            "circle_center": r.pos_center,
         }
 
     def coords_reference_frame(self) -> dict[str, np.ndarray]:
@@ -297,7 +307,7 @@ class DispersiveSpectrometer:
         Returns
         -------
         dict
-            JSON-serializable dictionary describing analyzer, geometry, reference frame,
+            Serializable dictionary describing analyzer, energy, geometry, reference frame,
             and coordinates.
         """
         ref_coords = self.coords_reference_frame()
@@ -307,8 +317,8 @@ class DispersiveSpectrometer:
             "asymmetry": float(self.asymmetry),
             "analyzer": self.analyzer.as_dict(),
             "energy_center": float(self.energy),
-            "energy_width": self.energy_width(),
-            "energy_range": (np.min(self.profile_analyzer_energy),np.max(self.profile_analyzer_energy)),
+            "energy_width": self.energy_width,
+            "energy_range": [self.energy_min, self.energy_max],
             "dispersive_geometry": {
                 "diameter": float(self._geometry.diameter),
                 "chord_rho": float(self._geometry.chord_rho),
@@ -340,4 +350,3 @@ def _validate_asymmetry_direction(value: int) -> int:
         raise ValueError("asymmetry_direction must be either +1 or -1.")
 
     return value
-    
