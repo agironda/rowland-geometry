@@ -113,6 +113,7 @@ class RowlandSpectrometer:
             bragg_now = float(bragg)
             energy_now = self.analyzer.to_energy(bragg_now)
         else:
+            assert energy is not None
             energy_now = float(energy)
             bragg_now = self.analyzer.to_bragg(energy_now)
 
