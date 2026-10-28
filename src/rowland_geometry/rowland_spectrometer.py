@@ -296,7 +296,7 @@ class RowlandSpectrometer:
         Returns
         -------
         dict
-            JSON-serializable dictionary describing analyzer, geometry, reference frame,
+            Serializable dictionary describing analyzer, geometry, reference frame,
             and coordinates.
         """
         
