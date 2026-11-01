@@ -78,7 +78,8 @@ class RowlandSpectrometer:
 
     The internal ``RowlandCircle`` is not exposed directly. The ``geometry``
     property returns an independent copy so that its derived geometry cannot
-    be modified externally.
+    be modified externally. All geometry changes are driven by setting attributes
+    of the ``RowlandSpectrometer`` class.
 
     All angles are in degrees, photon energies are in eV, and lengths
     and coordinates are in millimeters.
